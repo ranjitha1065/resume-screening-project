@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVision AI — Smart Resume Screener</title>
+    <meta name="description" content="AI-powered resume screening and job role classification dashboard using NLP and machine learning.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <!-- ============ LOGIN OVERLAY ============ -->
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-bg-blur"></div>
+        <div class="auth-card" id="auth-card">
+
+            <div class="auth-logo">
+                <i class="fa-solid fa-brain"></i>
+                <span>CVision AI</span>
+            </div>
+            <p class="auth-tagline">AI-Powered Resume Analysis</p>
+
+            <!-- Tab Switcher -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</button>
+                <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Sign Up</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="form-login" class="auth-form" onsubmit="handleLogin(event)">
+                <div class="auth-input-group">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" id="login-email" placeholder="Email address" required>
+                </div>
+                <div class="auth-input-group">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                </div>
+                <button type="submit" class="auth-submit-btn" id="login-btn">
+                    <span>Sign In</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <!-- Signup Form (hidden) -->
+            <form id="form-signup" class="auth-form hidden" onsubmit="handleSignup(event)">
+                <div class="auth-input-group">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" id="signup-email" placeholder="Email address" required>
+                </div>
+                <div class="auth-input-group">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="signup-password" placeholder="Password (min 6 chars)" minlength="6" required>
+                </div>
+                <button type="submit" class="auth-submit-btn" id="signup-btn">
+                    <span>Create Account</span>
+                    <i class="fa-solid fa-user-plus"></i>
+                </button>
+            </form>
+
+            <p class="auth-error hidden" id="auth-error"></p>
+        </div>
+    </div>
+
+    <!-- ============ MAIN APP ============ -->
+    <div id="main-app" class="app-container hidden">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-brain"></i>
+                <span>CVision AI</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" id="nav-upload" onclick="switchView('upload', this)">
+                    <i class="fa-solid fa-upload"></i> Upload & Scan
+                </a>
+                <a href="#" class="nav-item" id="nav-history" onclick="switchView('history', this)">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Live History
+                </a>
+                <a href="#" class="nav-item" id="nav-analytics" onclick="switchView('analytics', this)">
+                    <i class="fa-solid fa-chart-pie"></i> Analytics
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-email-display" id="user-email-display"></div>
+                <div class="status">
+                    <span class="dot"></span> System Online
+                </div>
+                <button class="logout-btn" onclick="handleLogout()">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <h1>Resume Extraction and Role Predictor</h1>
+                    <p class="topbar-sub">Powered by NLP · Machine Learning · Supabase Realtime</p>
+                </div>
+                <div class="user-profile">
+                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                </div>
+            </header>
+
+            <!-- ---- UPLOAD VIEW ---- -->
+            <div class="workspace" id="view-upload">
+                <div class="upload-section glass-panel">
+                    <h2>Submit Candidate Resume</h2>
+                    <p class="subtitle">This app will analyze the document, extract technical skills, and classify the applicant using ML.</p>
+                    <div class="drop-zone" id="drop-zone">
+                        <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+                        <span class="drop-text">Drag & Drop Resume Here</span>
+                        <span class="file-limits">Supports PDF or DOCX · Max 16MB</span>
+                        <input type="file" id="file-input" accept=".pdf,.docx" hidden>
+                        <button class="upload-btn" id="browse-btn" onclick="document.getElementById('file-input').click()">
+                            <i class="fa-solid fa-folder-open"></i> Browse Files
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div id="results-panel" style="display:none;">
+                    <div class="analyzing-state" id="loading-state">
+                        <div class="wave-loader">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                        <p class="loading-text">Analyzing Resume with AI Engine...!</p>
+                    </div>
+
+                    <div id="success-state" style="display:none;">
+                        <div class="dashboard-cards">
+                            <div class="result-card primary glass-panel anim-slide-up" style="animation-delay:0s">
+                                <div class="card-header">
+                                    <h3>Predicted Job Role</h3>
+                                    <i class="fa-solid fa-briefcase card-icon"></i>
+                                </div>
+                                <div class="card-body">
+                                    <h2 class="role-title" id="predicted-role">—</h2>
+                                    <div class="confidence-meter">
+                                        <div class="meter-bar">
+                                            <div class="meter-fill" id="confidence-fill"></div>
+                                        </div>
+                                        <span class="score" id="confidence-score">0% Confidence</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="result-card glass-panel anim-fade-in" style="flex:2; animation-delay:0.2s">
+                                <div class="card-header">
+                                    <h3>Extracted Technical Skills</h3>
+                                    <i class="fa-solid fa-code card-icon"></i>
+                                </div>
+                                <div class="card-body">
+                                    <div class="skills-cloud" id="skills-cloud"></div>
+                                    <p id="no-skills" style="display:none; color:#888;">No predefined technical skills detected.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="file-meta-panel glass-panel anim-scale-in" style="animation-delay:0.4s">
+                            <i class="fa-solid fa-file-circle-check"></i>
+                            <span id="filename-display"></span>
+                            <span class="meta-badge">Saved to Cloud ✓</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ---- HISTORY VIEW ---- -->
+            <div class="workspace hidden" id="view-history">
+                <div class="glass-panel w-full">
+                    <div class="section-header">
+                        <h2><i class="fa-solid fa-satellite-dish" style="color:var(--accent);"></i> Live Screening History</h2>
+                        <span class="realtime-badge"><span class="dot-green"></span> Realtime</span>
+                    </div>
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Predicted Role</th>
+                                <th>Confidence</th>
+                                <th>Key Skills</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body">
+                            <tr><td colspan="5" style="text-align:center; color:#aaa; padding:2rem;">No history yet. Upload a resume to start.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ---- ANALYTICS VIEW ---- -->
+            <div class="workspace hidden" id="view-analytics">
+                <div class="analytics-grid">
+                    <div class="glass-panel anim-slide-up" style="animation-delay:0s">
+                        <h3 class="chart-title"><i class="fa-solid fa-chart-bar"></i> Role Distribution</h3>
+                        <canvas id="roleChart" height="200"></canvas>
+                    </div>
+                    <div class="glass-panel anim-slide-up" style="animation-delay:0.15s">
+                        <h3 class="chart-title"><i class="fa-solid fa-star"></i> Top Detected Skills</h3>
+                        <canvas id="skillChart" height="200"></canvas>
+                    </div>
+                    <div class="stat-cards anim-fade-in" style="animation-delay:0.3s">
+                        <div class="stat-card glass-panel">
+                            <i class="fa-solid fa-file-lines"></i>
+                            <div>
+                                <h2 id="stat-total">0</h2>
+                                <p>Resumes Screened</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <i class="fa-solid fa-percent"></i>
+                            <div>
+                                <h2 id="stat-avg">0%</h2>
+                                <p>Avg. Confidence</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <i class="fa-solid fa-tags"></i>
+                            <div>
+                                <h2 id="stat-skills">0</h2>
+                                <p>Unique Skills Found</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
